@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AI-критик бизнес-идеи</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: #f4f5f7;
+        color: #111827;
+      }
+      main {
+        max-width: 920px;
+        margin: 0 auto;
+        padding: 42px 18px;
+      }
+      h1 {
+        margin: 0 0 10px;
+        font-size: 34px;
+      }
+      p {
+        line-height: 1.5;
+      }
+      section {
+        background: #ffffff;
+        border: 1px solid #d7dce3;
+        border-radius: 8px;
+        padding: 22px;
+        margin-top: 18px;
+      }
+      textarea {
+        width: 100%;
+        min-height: 150px;
+        box-sizing: border-box;
+        padding: 14px;
+        border: 1px solid #c5ccd6;
+        border-radius: 6px;
+        font: inherit;
+        resize: vertical;
+      }
+      button {
+        margin-top: 12px;
+        padding: 12px 18px;
+        border: 0;
+        border-radius: 6px;
+        background: #0f766e;
+        color: #ffffff;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: .6;
+        cursor: wait;
+      }
+      .result {
+        display: grid;
+        gap: 12px;
+      }
+      .box {
+        border: 1px solid #e1e5ea;
+        border-radius: 6px;
+        padding: 14px;
+        background: #fafafa;
+      }
+      .box h3 {
+        margin: 0 0 8px;
+      }
+      li {
+        margin: 6px 0;
+      }
+      .error {
+        color: #b91c1c;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>AI-критик бизнес-идеи</h1>
+      <p>Опишите идею, а сервис покажет сильные стороны, слабые места и вопросы инвестора перед питчингом.</p>
+
+      <section>
+        <h2>Проверка идеи</h2>
+        <textarea id="idea">Хочу сделать лендинг с AI-критиком бизнес-идеи для начинающих предпринимателей. Пользователь описывает идею, целевую аудиторию и стадию проекта, а сервис выдаёт сильные стороны, риски и вопросы инвестора перед питчингом.</textarea>
+        <button id="submit">Получить разбор</button>
+      </section>
+
+      <section id="output">
+        <h2>Результат</h2>
+        <p>Нажмите кнопку, чтобы увидеть AI-разбор.</p>
+      </section>
+    </main>
+
+    <script>
+      const button = document.querySelector('#submit');
+      const idea = document.querySelector('#idea');
+      const output = document.querySelector('#output');
+
+      function renderList(title, items) {
+        const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (char) => ({
+          '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+        })[char]);
+        return `<div class="box"><h3>${escapeHtml(title)}</h3><ul>${items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul></div>`;
+      }
+
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        output.innerHTML = '<h2>Результат</h2><p>Анализируем идею...</p>';
+
+        try {
+          const response = await fetch('/api/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idea: idea.value })
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || 'Ошибка запроса');
+
+          output.innerHTML = `
+            <h2>Результат</h2>
+            <div class="result">
+              ${renderList('Сильные стороны', data.strengths)}
+              ${renderList('Слабые места', data.weaknesses)}
+              ${renderList('Вопросы инвестора', data.questions)}
+            </div>
+          `;
+        } catch (error) {
+          output.innerHTML = '<h2>Результат</h2><p class="error"></p>';
+          output.querySelector('.error').textContent = error.message;
+        } finally {
+          button.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>

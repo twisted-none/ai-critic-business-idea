@@ -1,0 +1,66 @@
+<div style="max-width:760px;margin:0 auto;padding:32px;border:1px solid #ddd;border-radius:16px;font-family:Arial,sans-serif;">
+  <h2 style="margin:0 0 12px;font-size:28px;">Опиши свою бизнес-идею</h2>
+  <p style="margin:0 0 16px;color:#555;">AI-критик разберёт идею как венчурный инвестор.</p>
+  <textarea id="idea-input" rows="7" placeholder="Что делаете, для кого, как зарабатываете, в чём уникальность?"
+    style="width:100%;box-sizing:border-box;padding:14px;border:1px solid #bbb;border-radius:10px;font-size:16px;"></textarea>
+  <button id="analyze-btn"
+    style="margin-top:14px;padding:14px 22px;border:0;border-radius:10px;background:#111;color:#fff;font-size:16px;cursor:pointer;">
+    Получить разбор
+  </button>
+  <p id="error-message" style="display:none;color:#b00020;margin-top:12px;"></p>
+  <div id="result" style="display:none;margin-top:28px;">
+    <h3>Сильные стороны</h3><ul id="strengths-list"></ul>
+    <h3>Слабые места</h3><ul id="weaknesses-list"></ul>
+    <h3>Вопросы инвестора</h3><ul id="questions-list"></ul>
+  </div>
+</div>
+
+<script>
+(function () {
+  const ENDPOINT = 'https://YOUR-RENDER-URL.onrender.com/api/analyze';
+  const btn = document.querySelector('#analyze-btn');
+  const input = document.querySelector('#idea-input');
+  const result = document.querySelector('#result');
+  const error = document.querySelector('#error-message');
+  const lists = {
+    strengths: document.querySelector('#strengths-list'),
+    weaknesses: document.querySelector('#weaknesses-list'),
+    questions: document.querySelector('#questions-list')
+  };
+
+  function fillList(key, items) {
+    lists[key].innerHTML = (items || []).map((item) => '<li>' + item + '</li>').join('');
+  }
+
+  btn.addEventListener('click', async function () {
+    const idea = input.value.trim();
+    if (idea.length < 20) {
+      error.textContent = 'Опишите идею хотя бы парой предложений.';
+      error.style.display = 'block';
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Инвестор думает...';
+    error.style.display = 'none';
+    try {
+      const res = await fetch(ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idea })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Ошибка сервера');
+      fillList('strengths', data.strengths);
+      fillList('weaknesses', data.weaknesses);
+      fillList('questions', data.questions);
+      result.style.display = 'block';
+    } catch (e) {
+      error.textContent = e.message || 'Что-то пошло не так. Попробуйте ещё раз.';
+      error.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Получить разбор';
+    }
+  });
+})();
+</script>
