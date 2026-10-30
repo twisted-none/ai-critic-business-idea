@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import test from 'node:test';
 
 const listen = (server) => new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-const idea = 'Сервис помогает начинающим предпринимателям проверить идею перед питчингом на стадии прототипа.';
+const idea = 'Сервис помогает начинающим предпринимателям проверить идею перед презентацией на стадии прототипа.';
 
 async function startApp(t, modelResult, extraEnv = {}) {
   let calls = 0;
@@ -81,6 +81,24 @@ test('accepts a clarification response', async (t) => {
   const response = await postIdea(app.baseUrl);
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), clarification);
+});
+
+test('normalizes a fenced clarification response from a less strict free model', async (t) => {
+  const rawResult = {
+    status: 'clarification', summary: 'Нужны данные',
+    strengths: ['Лишний пункт'], weaknesses: ['Лишний пункт'],
+    questions: ['Кто пользователь?', 'Какую проблему решает продукт?', 'Какой результат нужен?', 'Лишний вопрос'],
+    next_step: 'Дополните описание',
+  };
+  const app = await startApp(t, `\`\`\`json\n${JSON.stringify(rawResult)}\n\`\`\``);
+  const response = await postIdea(app.baseUrl);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    ...rawResult,
+    strengths: [],
+    weaknesses: [],
+    questions: rawResult.questions.slice(0, 3),
+  });
 });
 
 test('accepts a handoff response for professional advice', async (t) => {

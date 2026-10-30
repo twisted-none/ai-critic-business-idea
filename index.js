@@ -63,31 +63,53 @@ function consumeRateLimit(ip) {
   return true;
 }
 
-function isStringArray(value, length = null) {
-  return Array.isArray(value)
-    && (length === null || value.length === length)
-    && value.every((item) => typeof item === 'string' && item.trim().length > 0);
+function normalizeStringArray(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item) => typeof item === 'string' && item.trim())
+    .map((item) => item.trim());
 }
 
-function isValidResult(result) {
-  if (!result || !['analysis', 'clarification', 'handoff'].includes(result.status)) return false;
-  if (typeof result.summary !== 'string' || !result.summary.trim()) return false;
-  if (typeof result.next_step !== 'string' || !result.next_step.trim()) return false;
+function normalizeResult(result) {
+  if (!result || !['analysis', 'clarification', 'handoff'].includes(result.status)) return null;
+  if (typeof result.summary !== 'string' || !result.summary.trim()) return null;
+  if (typeof result.next_step !== 'string' || !result.next_step.trim()) return null;
+  const normalized = {
+    status: result.status,
+    summary: result.summary.trim(),
+    strengths: normalizeStringArray(result.strengths),
+    weaknesses: normalizeStringArray(result.weaknesses),
+    questions: normalizeStringArray(result.questions),
+    next_step: result.next_step.trim(),
+  };
   if (result.status === 'analysis') {
-    return isStringArray(result.strengths, 3)
-      && isStringArray(result.weaknesses, 3)
-      && isStringArray(result.questions, 3);
+    if (normalized.strengths.length < 3
+      || normalized.weaknesses.length < 3
+      || normalized.questions.length < 3) return null;
+    normalized.strengths = normalized.strengths.slice(0, 3);
+    normalized.weaknesses = normalized.weaknesses.slice(0, 3);
+    normalized.questions = normalized.questions.slice(0, 3);
+    return normalized;
   }
   if (result.status === 'clarification') {
-    return isStringArray(result.strengths, 0)
-      && isStringArray(result.weaknesses, 0)
-      && isStringArray(result.questions)
-      && result.questions.length >= 1
-      && result.questions.length <= 3;
+    if (normalized.questions.length < 1) return null;
+    normalized.strengths = [];
+    normalized.weaknesses = [];
+    normalized.questions = normalized.questions.slice(0, 3);
+    return normalized;
   }
-  return isStringArray(result.strengths, 0)
-    && isStringArray(result.weaknesses, 0)
-    && isStringArray(result.questions, 0);
+  normalized.strengths = [];
+  normalized.weaknesses = [];
+  normalized.questions = [];
+  return normalized;
+}
+
+function parseModelResult(content) {
+  const cleanContent = content
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/, '');
+  return normalizeResult(JSON.parse(cleanContent || '{}'));
 }
 
 app.get('/', (_req, res) => {
@@ -123,7 +145,7 @@ app.post('/api/analyze', async (req, res) => {
         strengths: [
           'Понятная ценность: пользователь быстро получает взгляд инвестора на идею.',
           'MVP можно проверить без сложной разработки через лендинг и AI-анализ.',
-          'Результат сразу применим: список вопросов и рисков помогает доработать питч.',
+          'Результат сразу применим: список вопросов и рисков помогает доработать презентацию.',
         ],
         weaknesses: [
           'Нет проверки фактического спроса на реальной аудитории.',
@@ -132,10 +154,10 @@ app.post('/api/analyze', async (req, res) => {
         ],
         questions: [
           'Кто конкретно целевая аудитория и насколько часто у неё возникает такая задача?',
-          'Какой показатель докажет, что разбор действительно помогает перед питчингом?',
+          'Какой показатель докажет, что разбор действительно помогает перед презентацией?',
           'Почему пользователь выберет этот сервис вместо консультации с экспертом или обычного чата с ИИ?',
         ],
-        next_step: 'Проведите пять интервью с представителями целевой аудитории и проверьте, помогает ли разбор улучшить питч.',
+        next_step: 'Проведите пять интервью с представителями целевой аудитории и проверьте, помогает ли разбор улучшить презентацию.',
       });
     }
 
@@ -156,8 +178,8 @@ app.post('/api/analyze', async (req, res) => {
       max_tokens: 900,
     });
 
-    const result = JSON.parse(response.choices[0]?.message?.content || '{}');
-    if (!isValidResult(result)) {
+    const result = parseModelResult(response.choices[0]?.message?.content || '{}');
+    if (!result) {
       throw new Error('LLM вернула ответ неверного формата');
     }
 
