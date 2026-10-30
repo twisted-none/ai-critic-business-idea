@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Структурированный разбор бизнес-идеи перед питчингом.">
+    <title>AI-критик бизнес-идеи</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="AI-критик — главная">
+        <span class="brand-mark" aria-hidden="true">A</span>
+        <span>AI-критик</span>
+      </a>
+      <span class="product-label">Подготовка к питчингу</span>
+    </header>
+
+    <main>
+      <section class="intro" aria-labelledby="page-title">
+        <p class="eyebrow">Критический взгляд до встречи с инвестором</p>
+        <h1 id="page-title">Проверьте бизнес-идею перед питчингом</h1>
+        <p class="lead">Получите сильные стороны, риски, вопросы инвестора и один следующий шаг.</p>
+      </section>
+
+      <div class="workspace">
+        <section class="input-panel" aria-labelledby="input-title">
+          <div class="section-heading">
+            <span class="step-number">01</span>
+            <div>
+              <h2 id="input-title">Опишите идею</h2>
+              <p>Укажите продукт, аудиторию, проблему и текущую стадию.</p>
+            </div>
+          </div>
+
+          <form id="idea-form" novalidate>
+            <label for="idea">Описание бизнес-идеи</label>
+            <textarea
+              id="idea"
+              name="idea"
+              minlength="40"
+              maxlength="4000"
+              required
+              aria-describedby="idea-help idea-count"
+              placeholder="Например: делаю сервис для владельцев небольших студий, который помогает..."
+            ></textarea>
+            <div class="field-meta">
+              <span id="idea-help">Минимум 40 символов</span>
+              <span id="idea-count" aria-live="polite">0 / 4000</span>
+            </div>
+            <p class="privacy-note">Не вводите персональные данные или коммерческую тайну.</p>
+            <button id="submit" type="submit">
+              <span>Получить разбор</span>
+              <span aria-hidden="true">→</span>
+            </button>
+          </form>
+        </section>
+
+        <section class="output-panel" aria-labelledby="output-title">
+          <div class="section-heading">
+            <span class="step-number">02</span>
+            <div>
+              <h2 id="output-title">Результат</h2>
+              <p>Разбор появится здесь после проверки данных.</p>
+            </div>
+          </div>
+          <div id="output" class="output" role="status" aria-live="polite" aria-atomic="true" tabindex="-1">
+            <div class="empty-state">
+              <span class="empty-symbol" aria-hidden="true">↗</span>
+              <p>Заполните описание и отправьте его на анализ.</p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer>
+      <p>Предварительная AI-оценка не заменяет юридическую, финансовую или инвестиционную консультацию.</p>
+    </footer>
+  </body>
+</html>

@@ -1,8 +1,12 @@
 import express from 'express';
 import OpenAI from 'openai';
 import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const app = express();
+const ROOT_DIR = dirname(fileURLToPath(import.meta.url));
+const PUBLIC_DIR = join(ROOT_DIR, 'public');
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '20kb' }));
@@ -24,6 +28,13 @@ const SYSTEM_PROMPT = readFileSync(new URL('./system-prompt.txt', import.meta.ur
 const RATE_LIMIT = 8;
 const RATE_WINDOW_MS = 60_000;
 const requestBuckets = new Map();
+const cleanupTimer = setInterval(() => {
+  const now = Date.now();
+  for (const [ip, bucket] of requestBuckets) {
+    if (now >= bucket.resetAt) requestBuckets.delete(ip);
+  }
+}, RATE_WINDOW_MS);
+cleanupTimer.unref();
 
 app.use((req, res, next) => {
   res.set({
@@ -38,6 +49,7 @@ app.use((req, res, next) => {
   }
   next();
 });
+app.use(express.static(PUBLIC_DIR, { index: false, maxAge: IS_PRODUCTION ? '1h' : 0 }));
 
 function consumeRateLimit(ip) {
   const now = Date.now();
@@ -70,6 +82,7 @@ function isValidResult(result) {
     return isStringArray(result.strengths, 0)
       && isStringArray(result.weaknesses, 0)
       && isStringArray(result.questions)
+      && result.questions.length >= 1
       && result.questions.length <= 3;
   }
   return isStringArray(result.strengths, 0)
@@ -78,11 +91,11 @@ function isValidResult(result) {
 }
 
 app.get('/', (_req, res) => {
-  res.sendFile(new URL('./local-demo.html', import.meta.url).pathname);
+  res.sendFile(join(PUBLIC_DIR, 'index.html'));
 });
 
 app.get('/demo', (_req, res) => {
-  res.sendFile(new URL('./local-demo.html', import.meta.url).pathname);
+  res.redirect(308, '/');
 });
 
 app.get('/health', (_req, res) => {
@@ -105,6 +118,8 @@ app.post('/api/analyze', async (req, res) => {
 
     if (DEMO_MODE) {
       return res.json({
+        status: 'analysis',
+        summary: 'Идея решает понятную задачу, но ценность и спрос ещё нужно подтвердить.',
         strengths: [
           'Понятная ценность: пользователь быстро получает взгляд инвестора на идею.',
           'MVP можно проверить без сложной разработки через лендинг и AI-анализ.',
@@ -120,6 +135,7 @@ app.post('/api/analyze', async (req, res) => {
           'Какой показатель докажет, что разбор действительно помогает перед питчингом?',
           'Почему пользователь выберет этот сервис вместо консультации с экспертом или обычного чата с ИИ?',
         ],
+        next_step: 'Проведите пять интервью с представителями целевой аудитории и проверьте, помогает ли разбор улучшить питч.',
       });
     }
 
