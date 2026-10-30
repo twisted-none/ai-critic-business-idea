@@ -139,6 +139,7 @@ test('falls back to clarification when a vague idea gets malformed model output'
     ],
     next_step: 'Дополните описание ответами на эти вопросы и отправьте его повторно.',
   });
+  assert.equal(app.calls(), 0);
 });
 
 test('validates input length before calling the model', async (t) => {

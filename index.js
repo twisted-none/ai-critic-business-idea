@@ -155,6 +155,9 @@ app.post('/api/analyze', async (req, res) => {
       });
     }
 
+    const clarificationFallback = buildClarificationFallback(idea);
+    if (clarificationFallback) return res.json(clarificationFallback);
+
     if (DEMO_MODE) {
       return res.json({
         status: 'analysis',
@@ -200,8 +203,6 @@ app.post('/api/analyze', async (req, res) => {
       result = parseModelResult(response.choices[0]?.message?.content || '{}');
     } catch {}
     if (!result) {
-      const fallback = buildClarificationFallback(idea);
-      if (fallback) return res.json(fallback);
       throw new Error('LLM вернула ответ неверного формата');
     }
 
