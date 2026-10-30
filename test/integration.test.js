@@ -120,6 +120,27 @@ test('rejects malformed model output with a generic gateway error', async (t) =>
   assert.deepEqual(await response.json(), { error: 'Не удалось получить разбор. Попробуйте ещё раз.' });
 });
 
+test('falls back to clarification when a vague idea gets malformed model output', async (t) => {
+  const app = await startApp(t, 'not-json');
+  const response = await postIdea(
+    app.baseUrl,
+    'Хочу сделать приложение для бизнеса, но пока не определил аудиторию, проблему и ценность продукта.',
+  );
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    status: 'clarification',
+    summary: 'Для содержательного разбора не хватает ключевых данных об идее.',
+    strengths: [],
+    weaknesses: [],
+    questions: [
+      'Кто основной пользователь продукта?',
+      'Какую конкретную проблему он должен решать?',
+      'Какой измеримый результат должен получить пользователь?',
+    ],
+    next_step: 'Дополните описание ответами на эти вопросы и отправьте его повторно.',
+  });
+});
+
 test('validates input length before calling the model', async (t) => {
   const app = await startApp(t, '{}');
   const shortResponse = await postIdea(app.baseUrl, 'Слишком коротко');

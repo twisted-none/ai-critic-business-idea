@@ -112,6 +112,23 @@ function parseModelResult(content) {
   return normalizeResult(JSON.parse(cleanContent || '{}'));
 }
 
+function buildClarificationFallback(idea) {
+  const missingContextSignal = /(?:не\s+(?:определил|определена|определено|знаю|понимаю)|пока\s+нет|нет\s+данных|неясно)/i;
+  if (!missingContextSignal.test(idea)) return null;
+  return {
+    status: 'clarification',
+    summary: 'Для содержательного разбора не хватает ключевых данных об идее.',
+    strengths: [],
+    weaknesses: [],
+    questions: [
+      'Кто основной пользователь продукта?',
+      'Какую конкретную проблему он должен решать?',
+      'Какой измеримый результат должен получить пользователь?',
+    ],
+    next_step: 'Дополните описание ответами на эти вопросы и отправьте его повторно.',
+  };
+}
+
 app.get('/', (_req, res) => {
   res.sendFile(join(PUBLIC_DIR, 'index.html'));
 });
@@ -178,8 +195,13 @@ app.post('/api/analyze', async (req, res) => {
       max_tokens: 900,
     });
 
-    const result = parseModelResult(response.choices[0]?.message?.content || '{}');
+    let result = null;
+    try {
+      result = parseModelResult(response.choices[0]?.message?.content || '{}');
+    } catch {}
     if (!result) {
+      const fallback = buildClarificationFallback(idea);
+      if (fallback) return res.json(fallback);
       throw new Error('LLM вернула ответ неверного формата');
     }
 
