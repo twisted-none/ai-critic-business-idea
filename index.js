@@ -1,11 +1,15 @@
 import express from 'express';
 import OpenAI from 'openai';
+import { readFileSync } from 'node:fs';
 
 const app = express();
+app.disable('x-powered-by');
+app.set('trust proxy', 1);
 app.use(express.json({ limit: '20kb' }));
 
 const MODEL = process.env.LLM_MODEL || 'openrouter/free';
-const DEMO_MODE = process.env.DEMO_MODE === 'true';
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const DEMO_MODE = !IS_PRODUCTION && process.env.DEMO_MODE === 'true';
 const API_KEY = process.env.LLM_API_KEY;
 const client = API_KEY
   ? new OpenAI({
@@ -16,17 +20,62 @@ const client = API_KEY
     })
   : null;
 
-const SYSTEM_PROMPT = `Ты — венчурный инвестор с опытом.
-Анализируй бизнес-идеи профессионально, по существу, без подбадривания и без излишней резкости.
-Всегда отвечай только на русском языке.
-Не выдумывай факты о рынке, выручке, конкурентах или инвестициях, если их нет в описании идеи.
-Верни ответ строго в формате JSON:
-{
-  "strengths": ["сильная сторона 1", "сильная сторона 2", "сильная сторона 3"],
-  "weaknesses": ["слабое место 1", "слабое место 2", "слабое место 3"],
-  "questions": ["вопрос инвестора 1", "вопрос инвестора 2", "вопрос инвестора 3"]
+const SYSTEM_PROMPT = readFileSync(new URL('./system-prompt.txt', import.meta.url), 'utf8');
+const RATE_LIMIT = 8;
+const RATE_WINDOW_MS = 60_000;
+const requestBuckets = new Map();
+
+app.use((req, res, next) => {
+  res.set({
+    'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    'Referrer-Policy': 'no-referrer',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+  });
+  if (IS_PRODUCTION) {
+    res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
+
+function consumeRateLimit(ip) {
+  const now = Date.now();
+  const bucket = requestBuckets.get(ip);
+  if (!bucket || now >= bucket.resetAt) {
+    requestBuckets.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    return true;
+  }
+  if (bucket.count >= RATE_LIMIT) return false;
+  bucket.count += 1;
+  return true;
 }
-По 3 пункта в каждом массиве. Никакого текста до или после JSON.`;
+
+function isStringArray(value, length = null) {
+  return Array.isArray(value)
+    && (length === null || value.length === length)
+    && value.every((item) => typeof item === 'string' && item.trim().length > 0);
+}
+
+function isValidResult(result) {
+  if (!result || !['analysis', 'clarification', 'handoff'].includes(result.status)) return false;
+  if (typeof result.summary !== 'string' || !result.summary.trim()) return false;
+  if (typeof result.next_step !== 'string' || !result.next_step.trim()) return false;
+  if (result.status === 'analysis') {
+    return isStringArray(result.strengths, 3)
+      && isStringArray(result.weaknesses, 3)
+      && isStringArray(result.questions, 3);
+  }
+  if (result.status === 'clarification') {
+    return isStringArray(result.strengths, 0)
+      && isStringArray(result.weaknesses, 0)
+      && isStringArray(result.questions)
+      && result.questions.length <= 3;
+  }
+  return isStringArray(result.strengths, 0)
+    && isStringArray(result.weaknesses, 0)
+    && isStringArray(result.questions, 0);
+}
 
 app.get('/', (_req, res) => {
   res.sendFile(new URL('./local-demo.html', import.meta.url).pathname);
@@ -43,8 +92,15 @@ app.get('/health', (_req, res) => {
 app.post('/api/analyze', async (req, res) => {
   try {
     const idea = String(req.body?.idea || '').trim();
-    if (idea.length < 20) {
-      return res.status(400).json({ error: 'Опишите идею хотя бы парой предложений.' });
+    if (idea.length < 40 || idea.length > 4000) {
+      return res.status(422).json({
+        error: 'Описание должно содержать от 40 до 4000 символов.',
+      });
+    }
+    if (!consumeRateLimit(req.ip)) {
+      return res.status(429).json({
+        error: 'Слишком много запросов. Подождите минуту и попробуйте снова.',
+      });
     }
 
     if (DEMO_MODE) {
@@ -85,17 +141,14 @@ app.post('/api/analyze', async (req, res) => {
     });
 
     const result = JSON.parse(response.choices[0]?.message?.content || '{}');
-    const fields = ['strengths', 'weaknesses', 'questions'];
-    if (!fields.every((field) =>
-      Array.isArray(result[field]) && result[field].every((item) => typeof item === 'string')
-    )) {
+    if (!isValidResult(result)) {
       throw new Error('LLM вернула ответ неверного формата');
     }
 
     res.json(result);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Не удалось получить разбор. Попробуйте ещё раз.' });
+    console.error('LLM request failed', { name: error?.name, status: error?.status });
+    res.status(502).json({ error: 'Не удалось получить разбор. Попробуйте ещё раз.' });
   }
 });
 
