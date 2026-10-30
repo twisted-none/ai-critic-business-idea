@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: ai-critic-business-idea
+    name: ai-critic-pitch-mvp
     runtime: node
     plan: free
     buildCommand: npm ci
