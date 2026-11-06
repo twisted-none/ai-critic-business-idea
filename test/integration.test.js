@@ -66,10 +66,14 @@ test('sends the final guarded prompt and returns an analysis', async (t) => {
   const response = await postIdea(app.baseUrl);
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), result);
-  const prompt = JSON.parse(app.requestBody()).messages[0].content;
+  const modelRequest = JSON.parse(app.requestBody());
+  const prompt = modelRequest.messages[0].content;
   assert.match(prompt, /clarification/);
   assert.match(prompt, /handoff/);
   assert.match(prompt, /next_step/);
+  assert.equal(modelRequest.response_format.type, 'json_schema');
+  assert.equal(modelRequest.response_format.json_schema.strict, true);
+  assert.equal(modelRequest.provider.require_parameters, true);
 });
 
 test('accepts a clarification response', async (t) => {

@@ -27,6 +27,23 @@ const client = API_KEY
 const SYSTEM_PROMPT = readFileSync(new URL('./system-prompt.txt', import.meta.url), 'utf8');
 const RATE_LIMIT = 8;
 const RATE_WINDOW_MS = 60_000;
+const RESPONSE_SCHEMA = {
+  name: 'business_idea_analysis',
+  strict: true,
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['status', 'summary', 'strengths', 'weaknesses', 'questions', 'next_step'],
+    properties: {
+      status: { type: 'string', enum: ['analysis', 'clarification', 'handoff'] },
+      summary: { type: 'string', minLength: 1 },
+      strengths: { type: 'array', items: { type: 'string' } },
+      weaknesses: { type: 'array', items: { type: 'string' } },
+      questions: { type: 'array', items: { type: 'string' } },
+      next_step: { type: 'string', minLength: 1 },
+    },
+  },
+};
 const requestBuckets = new Map();
 const cleanupTimer = setInterval(() => {
   const now = Date.now();
@@ -193,9 +210,10 @@ app.post('/api/analyze', async (req, res) => {
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: idea },
       ],
-      response_format: { type: 'json_object' },
+      response_format: { type: 'json_schema', json_schema: RESPONSE_SCHEMA },
+      provider: { require_parameters: true },
       temperature: 0.5,
-      max_tokens: 900,
+      max_tokens: 1600,
     });
 
     let result = null;
