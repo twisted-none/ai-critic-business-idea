@@ -214,4 +214,8 @@ app.post('/api/analyze', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`AI-критик готов на порту ${PORT}`));
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => console.log(`AI-критик готов на порту ${PORT}`));
+}
+
+export default app;
